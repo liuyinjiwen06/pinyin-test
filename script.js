@@ -41,7 +41,127 @@ function loadDictionary() {
         .catch(error => console.error('加载字典出错:', error));
 }
 
-// ... [其他函数保持不变: parseDictionary, addPhraseToDictionary, convertToneNumbers, translate, translatePinyinToEnglish, translatePhrase, translateEnglishToChinese] ...
+function parseDictionary(text) {
+    const lines = text.split('\n');
+
+    lines.forEach(line => {
+        if (line.startsWith('#')) return; // 跳过注释行
+        const match = line.match(/^(\S+)\s(\S+)\s\[([^\]]+)\]\s\/(.+)\//);
+        if (match) {
+            const [, traditional, simplified, pinyin, english] = match;
+            const pinyinClean = pinyin.toLowerCase().replace(/\d/g, ''); // 移除声调数字
+            const pinyinWithTone = convertToneNumbers(pinyin);
+            const englishDefinitions = english.split('/').filter(def => def.trim() !== '');
+
+            // 添加拼音到英文的映射（包括带声调和不带声调的版本）
+            [pinyinClean, pinyinWithTone].forEach(pinyinVersion => {
+                if (!dictionary.pinyin[pinyinVersion]) {
+                    dictionary.pinyin[pinyinVersion] = [];
+                }
+                dictionary.pinyin[pinyinVersion].push({
+                    simplified,
+                    traditional,
+                    pinyin: pinyinWithTone,
+                    definitions: englishDefinitions
+                });
+            });
+
+            // 添加英文到中文和拼音的映射
+            englishDefinitions.forEach(def => {
+                const lowerDef = def.toLowerCase().trim();
+                if (!dictionary.english[lowerDef]) {
+                    dictionary.english[lowerDef] = [];
+                }
+                dictionary.english[lowerDef].push({
+                    simplified,
+                    traditional,
+                    pinyin: pinyinWithTone
+                });
+            });
+        }
+    });
+}
+
+function convertToneNumbers(pinyin) {
+    const toneMarks = {
+        'a': ['ā', 'á', 'ǎ', 'à', 'a'],
+        'e': ['ē', 'é', 'ě', 'è', 'e'],
+        'i': ['ī', 'í', 'ǐ', 'ì', 'i'],
+        'o': ['ō', 'ó', 'ǒ', 'ò', 'o'],
+        'u': ['ū', 'ú', 'ǔ', 'ù', 'u'],
+        'ü': ['ǖ', 'ǘ', 'ǚ', 'ǜ', 'ü']
+    };
+
+    return pinyin.replace(/([aeiouü])(n?g?)(\d)/gi, (match, vowel, ending, tone) => {
+        const index = parseInt(tone) - 1;
+        const newVowel = toneMarks[vowel.toLowerCase()][index];
+        return (vowel === vowel.toUpperCase() ? newVowel.toUpperCase() : newVowel) + ending;
+    });
+}
+
+function translate() {
+    const input = document.getElementById('input').value.trim();
+    const output = document.getElementById('output');
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+
+    let translated;
+    if (mode === 'pinyinToEnglish') {
+        translated = translatePinyinToEnglish(input);
+    } else {
+        translated = translateEnglishToChinese(input);
+    }
+
+    output.innerHTML = translated;
+    console.log('翻译完成:', translated);
+}
+
+function translatePinyinToEnglish(input) {
+    const words = input.toLowerCase().split(/\s+/);
+    const results = [];
+
+    // 尝试翻译整个短语
+    const phraseResult = translatePhrase(words.join(''));
+    if (phraseResult) {
+        results.push(phraseResult);
+    }
+
+    // 翻译单个词
+    words.forEach(word => {
+        const entries = dictionary.pinyin[word] || dictionary.pinyin[word.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, match => {
+            return 'aeiouü'['āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ'.indexOf(match) % 5];
+        })];
+        if (entries) {
+            results.push(entries.map(entry => 
+                `${entry.simplified} (${entry.pinyin}): ${entry.definitions.join(', ')}`
+            ).join('<br>'));
+        } else {
+            results.push(word);
+        }
+    });
+
+    return results.join('<br><br>');
+}
+
+function translatePhrase(phrase) {
+    const entry = dictionary.pinyin[phrase];
+    if (entry) {
+        return entry.map(e => `${e.simplified} (${e.pinyin}): ${e.definitions.join(', ')}`).join('<br>');
+    }
+    return null;
+}
+
+function translateEnglishToChinese(input) {
+    const words = input.toLowerCase().split(/\s+/);
+    return words.map(word => {
+        const entries = dictionary.english[word];
+        if (entries) {
+            return entries.map(entry => 
+                `${entry.simplified} ${entry.pinyin}`
+            ).join('<br>');
+        }
+        return word;
+    }).join('<br><br>');
+}
 
 function updateLanguage(lang) {
     currentLang = lang;
