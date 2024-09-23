@@ -49,8 +49,8 @@ function parseDictionary(text) {
         const match = line.match(/^(\S+)\s(\S+)\s\[([^\]]+)\]\s\/(.+)\//);
         if (match) {
             const [, traditional, simplified, pinyin, english] = match;
-            const pinyinClean = pinyin.toLowerCase().replace(/\d/g, ''); // 移除声调数字
-            const pinyinWithTone = convertToneNumbers(pinyin);
+            const pinyinClean = pinyin.toLowerCase().replace(/\s/g, '').replace(/\d/g, ''); // 移除空格和声调数字
+            const pinyinWithTone = convertToneNumbers(pinyin.replace(/\s/g, '')); // 移除空格并转换声调
             const englishDefinitions = english.split('/').filter(def => def.trim() !== '');
 
             // 添加拼音到英文的映射（包括带声调和不带声调的版本）
@@ -125,21 +125,44 @@ function translatePinyinToEnglish(input) {
         results.push(phraseResult);
     }
 
-    // 翻译单个词
-    words.forEach(word => {
-        const entries = dictionary.pinyin[word] || dictionary.pinyin[word.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, match => {
-            return 'aeiouü'['āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ'.indexOf(match) % 5];
-        })];
-        if (entries) {
-            results.push(entries.map(entry => 
-                `${entry.simplified} (${entry.pinyin}): ${entry.definitions.join(', ')}`
-            ).join('<br>'));
-        } else {
-            results.push(word);
+    // 如果整个短语没有匹配，尝试翻译单个词
+    if (results.length === 0) {
+        for (let i = 0; i < words.length; i++) {
+            // 尝试翻译两个词的组合
+            if (i < words.length - 1) {
+                const twoWordPhrase = words[i] + words[i+1];
+                const twoWordResult = translatePhrase(twoWordPhrase);
+                if (twoWordResult) {
+                    results.push(twoWordResult);
+                    i++; // 跳过下一个词，因为已经作为词组的一部分翻译了
+                    continue;
+                }
+            }
+            
+            // 翻译单个词
+            const word = words[i];
+            const entries = dictionary.pinyin[word] || dictionary.pinyin[word.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, match => {
+                return 'aeiouü'['āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ'.indexOf(match) % 5];
+            })];
+            if (entries) {
+                results.push(entries.map(entry => 
+                    `${entry.simplified} (${entry.pinyin}): ${entry.definitions.join(', ')}`
+                ).join('<br>'));
+            } else {
+                results.push(word);
+            }
         }
-    });
+    }
 
     return results.join('<br><br>');
+}
+
+function translatePhrase(phrase) {
+    const entry = dictionary.pinyin[phrase];
+    if (entry) {
+        return entry.map(e => `${e.simplified} (${e.pinyin}): ${e.definitions.join(', ')}`).join('<br>');
+    }
+    return null;
 }
 
 function translatePhrase(phrase) {
