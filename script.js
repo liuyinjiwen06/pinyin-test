@@ -23,10 +23,10 @@ const translations = {
 let currentLang = 'en';
 
 function loadDictionary() {
-    console.log('开始加载字典...');
+    console.log('开始加载字典...', DICTIONARY_URL);
     fetch(DICTIONARY_URL)
         .then(response => {
-            console.log('收到响应:', response.status);
+            console.log('收到响应:', response.status, response.statusText);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -34,11 +34,17 @@ function loadDictionary() {
         })
         .then(text => {
             console.log('字典文本长度:', text.length);
+            if (text.length === 0) {
+                throw new Error('字典内容为空');
+            }
             parseDictionary(text);
             console.log('字典加载完成，拼音条目数:', Object.keys(dictionary.pinyin).length);
             console.log('字典加载完成，英文条目数:', Object.keys(dictionary.english).length);
         })
-        .catch(error => console.error('加载字典出错:', error));
+        .catch(error => {
+            console.error('加载字典出错:', error);
+            document.getElementById('output').textContent = '加载字典失败，请检查控制台错误信息并刷新页面重试。';
+        });
 }
 
 function parseDictionary(text) {
@@ -235,4 +241,4 @@ function init() {
 }
 
 // 当 DOM 加载完成后执行初始化
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', init);   
